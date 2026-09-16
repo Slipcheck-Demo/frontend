@@ -1,16 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { ApiError, convertCode, toApiError } from "@/lib/api";
-import { CenteredScreen } from "@/components/CenteredScreen";
-import { CodeInputForm } from "@/components/CodeInputForm";
-import { ErrorBanner } from "@/components/ErrorBanner";
+import { ApiError, convertCode } from "@/lib/api";
+import { CodeActionScreen } from "@/components/CodeActionScreen";
 import { SlipCard } from "@/components/SlipCard";
-import { SlipCardSkeleton } from "@/components/SlipCardSkeleton";
+import { useCodeAction } from "@/lib/hooks/useCodeAction";
 import { toSlipSelection } from "@/lib/mapping";
 import type { ConvertResponse } from "@/lib/types";
-
-type Status = "idle" | "loading" | "error" | "success";
 
 function errorMessageFor(err: ApiError): string {
   if (err.code === "invalid_code") {
@@ -20,49 +15,28 @@ function errorMessageFor(err: ApiError): string {
 }
 
 export default function ConvertPage() {
-  const [inputCode, setInputCode] = useState("");
-  const [status, setStatus] = useState<Status>("idle");
-  const [result, setResult] = useState<ConvertResponse | null>(null);
-  const [errorMessage, setErrorMessage] = useState("");
-
-  async function handleSubmit() {
-    if (!inputCode.trim()) return;
-    setStatus("loading");
-    try {
-      const data = await convertCode(inputCode.trim());
-      setResult(data);
-      setStatus("success");
-    } catch (err) {
-      setErrorMessage(errorMessageFor(toApiError(err)));
-      setStatus("error");
-    }
-  }
+  const {
+    code: inputCode,
+    setCode: setInputCode,
+    status,
+    result,
+    errorMessage,
+    submit,
+  } = useCodeAction<ConvertResponse>(convertCode, errorMessageFor);
 
   return (
-    <CenteredScreen>
-      <div className="flex flex-col gap-2">
-        <h1 className="text-[28px] font-bold tracking-tight text-text-primary">
-          Convert a booking code
-        </h1>
-        <p className="text-[14.5px] leading-relaxed text-text-secondary">
-          Drops any selection that&rsquo;s expired or suspended and generates a fresh code
-          with what&rsquo;s left.
-        </p>
-      </div>
-
-      <CodeInputForm
-        value={inputCode}
-        onChange={setInputCode}
-        onSubmit={handleSubmit}
-        placeholder="e.g. BW6E19810C"
-        submitLabel="Convert"
-        hasError={status === "error"}
-        disabled={status === "loading"}
-      />
-
-      {status === "error" ? <ErrorBanner message={errorMessage} /> : null}
-      {status === "loading" ? <SlipCardSkeleton /> : null}
-      {status === "success" && result ? (
+    <CodeActionScreen
+      title="Convert a booking code"
+      subtitle="Drops any selection that's expired or suspended and generates a fresh code with what's left."
+      placeholder="e.g. BW6E19810C"
+      submitLabel="Convert"
+      code={inputCode}
+      onCodeChange={setInputCode}
+      onSubmit={submit}
+      status={status}
+      errorMessage={errorMessage}
+    >
+      {result ? (
         <div className="flex flex-col gap-4">
           {result.removedLegs.length === 0 ? (
             <div className="flex items-center gap-2.5 rounded-md border border-success/30 bg-success/8 px-4 py-3">
@@ -107,6 +81,6 @@ export default function ConvertPage() {
           ) : null}
         </div>
       ) : null}
-    </CenteredScreen>
+    </CodeActionScreen>
   );
 }
