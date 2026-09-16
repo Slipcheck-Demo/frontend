@@ -25,6 +25,7 @@ export default function CreatePage() {
   const [step, setStep] = useState<Step>("sport");
 
   const [sports, setSports] = useState<Sport[]>([]);
+  const [sportsLoading, setSportsLoading] = useState(true);
   const [sportsError, setSportsError] = useState("");
   const [selectedSportId, setSelectedSportId] = useState<string | null>(null);
 
@@ -48,7 +49,8 @@ export default function CreatePage() {
   useEffect(() => {
     getSports()
       .then((data) => setSports(data.sports))
-      .catch(() => setSportsError("Couldn't load the list of sports. Please refresh."));
+      .catch(() => setSportsError("Couldn't load the list of sports. Please refresh."))
+      .finally(() => setSportsLoading(false));
   }, []);
 
   function handlePickSport(sportId: string) {
@@ -259,21 +261,33 @@ export default function CreatePage() {
               <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
                 Choose a sport
               </p>
-              <div className="grid grid-cols-4 gap-3">
-                {sports.map((sport) => (
-                  <button
-                    key={sport.sportId}
-                    type="button"
-                    onClick={() => handlePickSport(sport.sportId)}
-                    className="flex flex-col items-center gap-2.5 rounded-md border border-border bg-surface-raised px-3.5 py-4.5 text-text-secondary hover:border-accent hover:text-text-primary"
-                  >
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
-                    </svg>
-                    <span className="text-[13px] font-semibold">{sport.name}</span>
-                  </button>
-                ))}
-              </div>
+              {sportsLoading ? (
+                <div className="grid grid-cols-4 gap-3">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="skeleton h-[86px] w-full" />
+                  ))}
+                </div>
+              ) : sports.length === 0 ? (
+                <p className="text-sm text-text-secondary">
+                  No sports available right now — please try again in a moment.
+                </p>
+              ) : (
+                <div className="grid grid-cols-4 gap-3">
+                  {sports.map((sport) => (
+                    <button
+                      key={sport.sportId}
+                      type="button"
+                      onClick={() => handlePickSport(sport.sportId)}
+                      className="flex flex-col items-center gap-2.5 rounded-md border border-border bg-surface-raised px-3.5 py-4.5 text-text-secondary hover:border-accent hover:text-text-primary"
+                    >
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+                      </svg>
+                      <span className="text-[13px] font-semibold">{sport.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )
         ) : null}
@@ -286,6 +300,10 @@ export default function CreatePage() {
             {eventsError ? <ErrorBanner message={eventsError} /> : null}
             {eventsLoading ? (
               <div className="skeleton h-16 w-full" />
+            ) : !eventsError && events.length === 0 ? (
+              <p className="text-sm text-text-secondary">
+                No upcoming matches for {sportName} right now — try another sport.
+              </p>
             ) : (
               events.map((event) => (
                 <button
@@ -329,6 +347,11 @@ export default function CreatePage() {
         {step === "market" ? (
           <div className="flex flex-col gap-[22px]">
             {marketsError ? <ErrorBanner message={marketsError} /> : null}
+            {!marketsLoading && markets.length === 0 ? (
+              <p className="text-sm text-text-secondary">
+                No markets available for this match right now.
+              </p>
+            ) : null}
             {markets.map((market) => (
               <div key={market.marketId}>
                 <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
