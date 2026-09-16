@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens extracted verbatim from the Claude Design canvas
+ * (see ../../docs/design-tokens.md) — do not eyeball/guess new values here,
+ * extend that doc first and mirror the change.
+ */
+@theme inline {
+  --color-bg: #0b0f16;
+  --color-surface: #12161f;
+  --color-surface-raised: #171c27;
+  --color-border: #232838;
+  --color-border-subtle: #1c212c;
+
+  --color-text-primary: #f2f4f8;
+  --color-text-secondary: #8892a6;
+  --color-text-tertiary: #5c6478;
+
+  --color-accent: #8b7cf6;
+  --color-accent-hover: #a296ff;
+  --color-on-accent: #0b0f16;
+
+  --color-success: #34d399;
+  --color-danger: #f76e6e;
+  --color-danger-soft: #f9b4b4;
+
+  --font-sans: var(--font-space-grotesk), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  --radius-lg: 14px;
+  --radius-md: 10px;
+  --radius-sm: 8px;
+}
+
+body {
+  margin: 0;
+}
+
+::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -300px 0;
+  }
+  100% {
+    background-position: 300px 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-raised) 25%,
+    #1e2431 37%,
+    var(--color-surface-raised) 63%
+  );
+  background-size: 600px 100%;
+  animation: skeleton-shimmer 1.6s infinite linear;
+  border-radius: var(--radius-sm);
+}
