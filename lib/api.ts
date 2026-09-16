@@ -20,6 +20,13 @@ export class ApiError extends Error {
   }
 }
 
+// Every call site catches a request failure and needs an ApiError to read `.code` off of —
+// network failures, aborts, and anything else `request()` didn't already wrap surface here as
+// a generic upstream error instead of each page re-deriving this itself.
+export function toApiError(err: unknown): ApiError {
+  return err instanceof ApiError ? err : new ApiError("upstream_error", 502);
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
@@ -58,8 +65,10 @@ export function getSports(): Promise<{ sports: Sport[] }> {
   return request("/api/sports");
 }
 
-export function getEvents(sportId: string): Promise<EventsResponse> {
-  return request(`/api/events?${new URLSearchParams({ sportId }).toString()}`);
+export function getEvents(sportId: string, skip?: number): Promise<EventsResponse> {
+  const params = new URLSearchParams({ sportId });
+  if (skip) params.set("skip", String(skip));
+  return request(`/api/events?${params.toString()}`);
 }
 
 export function getEventMarkets(eventId: number): Promise<EventMarketsResponse> {

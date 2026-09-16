@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ApiError, resolveCode } from "@/lib/api";
+import { ApiError, resolveCode, toApiError } from "@/lib/api";
 import { CenteredScreen } from "@/components/CenteredScreen";
 import { CodeInputForm } from "@/components/CodeInputForm";
 import { ErrorBanner } from "@/components/ErrorBanner";
@@ -33,8 +33,7 @@ export default function DecodePage() {
       setResult(data);
       setStatus("success");
     } catch (err) {
-      const apiError = err instanceof ApiError ? err : new ApiError("upstream_error", 502);
-      setErrorMessage(errorMessageFor(apiError));
+      setErrorMessage(errorMessageFor(toApiError(err)));
       setStatus("error");
     }
   }

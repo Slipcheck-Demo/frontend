@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ApiError, createCode, getEventMarkets, getEvents, getSports } from "@/lib/api";
+import { ApiError, createCode, getEventMarkets, getEvents, getSports, toApiError } from "@/lib/api";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { SlipBuilder, type BuilderItem } from "@/components/SlipBuilder";
 import { SlipCard } from "@/components/SlipCard";
@@ -30,11 +30,14 @@ export default function CreatePage() {
 
   const [events, setEvents] = useState<EventSummary[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventsLoadingMore, setEventsLoadingMore] = useState(false);
   const [eventsError, setEventsError] = useState("");
+  const [eventsIsFinalPage, setEventsIsFinalPage] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<EventSummary | null>(null);
 
   const [markets, setMarkets] = useState<EventMarket[]>([]);
   const [marketsLoading, setMarketsLoading] = useState(false);
+  const [marketsError, setMarketsError] = useState("");
 
   const [builderItems, setBuilderItems] = useState<BuilderItem[]>([]);
   const [createStatus, setCreateStatus] = useState<"idle" | "loading" | "error">("idle");
@@ -51,22 +54,53 @@ export default function CreatePage() {
   function handlePickSport(sportId: string) {
     setSelectedSportId(sportId);
     setStep("event");
+    setEvents([]);
+    setEventsIsFinalPage(true);
     setEventsLoading(true);
     setEventsError("");
     getEvents(sportId)
-      .then((data) => setEvents(data.events))
+      .then((data) => {
+        setEvents(data.events);
+        setEventsIsFinalPage(data.isFinalPage);
+      })
       .catch(() => setEventsError("Couldn't load upcoming matches. Please try again."))
       .finally(() => setEventsLoading(false));
+  }
+
+  function handleLoadMoreEvents() {
+    if (!selectedSportId || eventsLoadingMore) return;
+    setEventsLoadingMore(true);
+    getEvents(selectedSportId, events.length)
+      .then((data) => {
+        setEvents((prev) => [...prev, ...data.events]);
+        setEventsIsFinalPage(data.isFinalPage);
+      })
+      .catch(() => setEventsError("Couldn't load more matches. Please try again."))
+      .finally(() => setEventsLoadingMore(false));
+  }
+
+  // Breadcrumb links back to "sport"/"event" deliberately leave builderItems alone — this is
+  // the only way to add a leg from a second match, since the backend rejects any two
+  // selections that share an eventId (same-match legs can't combine into one slip).
+  function handleBackToSports() {
+    setStep("sport");
+  }
+
+  function handleBackToEvents() {
+    setStep("event");
   }
 
   function handlePickEvent(event: EventSummary) {
     setSelectedEvent(event);
     setMarkets(event.markets); // inline 1X2, shown immediately while the full list loads
+    setMarketsError("");
     setStep("market");
     setMarketsLoading(true);
     getEventMarkets(event.eventId)
       .then((data) => setMarkets(data.markets))
-      .catch(() => {})
+      .catch(() =>
+        setMarketsError("Couldn't load the full market list — showing what's available."),
+      )
       .finally(() => setMarketsLoading(false));
   }
 
@@ -99,8 +133,7 @@ export default function CreatePage() {
       setStep("review");
       setCreateStatus("idle");
     } catch (err) {
-      const apiError = err instanceof ApiError ? err : new ApiError("upstream_error", 502);
-      setCreateError(createErrorMessageFor(apiError));
+      setCreateError(createErrorMessageFor(toApiError(err)));
       setCreateStatus("error");
     }
   }
@@ -109,8 +142,11 @@ export default function CreatePage() {
     setStep("sport");
     setSelectedSportId(null);
     setEvents([]);
+    setEventsIsFinalPage(true);
+    setEventsError("");
     setSelectedEvent(null);
     setMarkets([]);
+    setMarketsError("");
     setBuilderItems([]);
     setReviewResult(null);
     setCreateStatus("idle");
@@ -177,17 +213,43 @@ export default function CreatePage() {
   }
 
   const sportName = sports.find((s) => s.sportId === selectedSportId)?.name ?? "";
-  const breadcrumb =
-    step === "sport"
-      ? "1. Choose a sport"
-      : step === "event"
-        ? `${sportName} › 2. Choose a match`
-        : `${sportName} › ${selectedEvent?.homeTeam} vs ${selectedEvent?.awayTeam} › 3. Choose markets`;
 
   return (
     <div className="flex flex-1">
       <div className="flex min-w-0 flex-1 flex-col gap-6 px-12 py-10">
-        <div className="text-[13px] text-text-tertiary">{breadcrumb}</div>
+        <div className="flex flex-wrap items-center gap-1.5 text-[13px] text-text-tertiary">
+          <button
+            type="button"
+            onClick={handleBackToSports}
+            disabled={step === "sport"}
+            className={step === "sport" ? "text-text-primary" : "hover:text-text-primary hover:underline"}
+          >
+            1. Choose a sport
+          </button>
+          {step !== "sport" ? (
+            <>
+              <span>›</span>
+              <button
+                type="button"
+                onClick={handleBackToEvents}
+                disabled={step === "event"}
+                className={
+                  step === "event" ? "text-text-primary" : "hover:text-text-primary hover:underline"
+                }
+              >
+                {sportName} › 2. Choose a match
+              </button>
+            </>
+          ) : null}
+          {step === "market" ? (
+            <>
+              <span>›</span>
+              <span className="text-text-primary">
+                {selectedEvent?.homeTeam} vs {selectedEvent?.awayTeam} › 3. Choose markets
+              </span>
+            </>
+          ) : null}
+        </div>
 
         {step === "sport" ? (
           sportsError ? (
@@ -251,11 +313,22 @@ export default function CreatePage() {
                 </button>
               ))
             )}
+            {!eventsLoading && !eventsIsFinalPage ? (
+              <button
+                type="button"
+                onClick={handleLoadMoreEvents}
+                disabled={eventsLoadingMore}
+                className="self-start rounded-md border border-border bg-surface-raised px-4 py-2 text-[13px] font-semibold text-text-secondary hover:border-accent hover:text-text-primary disabled:opacity-60"
+              >
+                {eventsLoadingMore ? "Loading…" : "Load more matches"}
+              </button>
+            ) : null}
           </div>
         ) : null}
 
         {step === "market" ? (
           <div className="flex flex-col gap-[22px]">
+            {marketsError ? <ErrorBanner message={marketsError} /> : null}
             {markets.map((market) => (
               <div key={market.marketId}>
                 <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">

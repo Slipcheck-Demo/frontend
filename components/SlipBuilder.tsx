@@ -16,10 +16,16 @@ export function SlipBuilder({
   onGenerate: () => void;
   generating: boolean;
 }) {
+  // Only show a total once every leg's price is known — multiplying just the known subset
+  // would silently understate the real total odds for a slip that includes a leg whose price
+  // hasn't loaded/isn't live (e.g. a suspended market), with nothing on screen to flag that.
   const knownPrices = items
     .map((item) => item.priceDecimal)
     .filter((price): price is number => price != null);
-  const total = knownPrices.length > 0 ? knownPrices.reduce((a, b) => a * b, 1) : null;
+  const total =
+    items.length > 0 && knownPrices.length === items.length
+      ? knownPrices.reduce((a, b) => a * b, 1)
+      : null;
 
   return (
     <div className="flex w-[340px] shrink-0 flex-col gap-[18px] border-l border-border-subtle bg-surface-sunken px-6 py-7">
