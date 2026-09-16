@@ -1,36 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# betway-booking-frontend
 
-## Getting Started
+Next.js (App Router, TypeScript, Tailwind CSS v4) UI for the Betway Nigeria booking-code
+product — Decode, Create, and Convert screens over
+[`betway-booking-backend`](../backend). Never calls Betway directly.
 
-First, run the development server:
+Design: [Claude Design canvas](https://claude.ai/artifact/X28GaTC2QPLeU9hVkUTuKD), tokens
+extracted verbatim into `../docs/design-tokens.md` — read that file before changing any
+color/spacing/typography value here.
 
-```bash
+## Screens
+
+- `/decode` — paste a code, see every selection with its odds and bettable status
+- `/create` — sport → event → market picker with a running slip sidebar, generates a code
+- `/convert` — paste a code, drops dead legs, generates a fresh code (kept vs removed)
+
+## Dev setup
+
+Requires [`betway-booking-backend`](../backend) running locally first (see its README —
+`docker compose up -d && npx prisma migrate dev && npm run dev`), with `CORS_ORIGIN` set to
+match wherever this dev server runs.
+
+```
+cp .env.local.example .env.local   # NEXT_PUBLIC_API_URL, defaults to http://localhost:3000
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Build
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+npm run build
+npm run lint
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+No automated test suite — the backend already covers the business logic (decode/create/
+convert edge cases); this repo is verified by exercising each screen against the live
+backend + live Betway data.
