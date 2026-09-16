@@ -2,6 +2,7 @@ export interface BuilderItem {
   outcomeId: string;
   outcomeName: string;
   eventShort: string;
+  eventId: number;
   priceDecimal?: number;
 }
 

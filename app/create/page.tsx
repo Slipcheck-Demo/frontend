@@ -127,15 +127,22 @@ export default function CreatePage() {
   }
 
   function toggleOutcome(outcome: EventOutcome) {
+    if (!selectedEvent) return;
     setBuilderItems((prev) => {
       const exists = prev.some((item) => item.outcomeId === outcome.outcomeId);
       if (exists) return prev.filter((item) => item.outcomeId !== outcome.outcomeId);
+      // The backend rejects any two selections that share an eventId — even across two
+      // different markets of the same match, not just two different matches — so block a
+      // second pick from this event here instead of letting Generate fail after the fact.
+      const hasPickFromThisEvent = prev.some((item) => item.eventId === selectedEvent.eventId);
+      if (hasPickFromThisEvent) return prev;
       return [
         ...prev,
         {
           outcomeId: outcome.outcomeId,
           outcomeName: outcome.displayName,
-          eventShort: selectedEvent ? `${selectedEvent.homeTeam} vs. ${selectedEvent.awayTeam}` : "",
+          eventShort: `${selectedEvent.homeTeam} vs. ${selectedEvent.awayTeam}`,
+          eventId: selectedEvent.eventId,
           priceDecimal: outcome.priceDecimal,
         },
       ];
@@ -364,6 +371,18 @@ export default function CreatePage() {
                 No markets available for this match right now.
               </p>
             ) : null}
+            {(() => {
+              const eventPick = selectedEvent
+                ? builderItems.find((item) => item.eventId === selectedEvent.eventId)
+                : undefined;
+              return eventPick ? (
+                <p className="text-[13px] text-text-secondary">
+                  &ldquo;{eventPick.outcomeName}&rdquo; from this match is already in your slip —
+                  the backend won&apos;t combine two picks from the same match. Remove it to pick
+                  a different outcome here.
+                </p>
+              ) : null;
+            })()}
             {markets.map((market) => (
               <div key={market.marketId}>
                 <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
@@ -372,16 +391,24 @@ export default function CreatePage() {
                 <div className="grid grid-cols-3 gap-2">
                   {market.outcomes.map((outcome) => {
                     const picked = builderItems.some((item) => item.outcomeId === outcome.outcomeId);
+                    const blocked =
+                      !picked &&
+                      selectedEvent != null &&
+                      builderItems.some((item) => item.eventId === selectedEvent.eventId);
                     return (
                       <button
                         key={outcome.outcomeId}
                         type="button"
                         onClick={() => toggleOutcome(outcome)}
+                        disabled={blocked}
+                        title={blocked ? "Remove this match's other pick first" : undefined}
                         className={
                           "flex items-center justify-between gap-2 rounded-[9px] border px-3 py-2.5 text-left " +
                           (picked
                             ? "border-accent bg-accent/12 text-text-primary"
-                            : "border-border bg-surface-raised text-text-secondary")
+                            : blocked
+                              ? "cursor-not-allowed border-border-subtle bg-surface-sunken text-text-tertiary opacity-50"
+                              : "border-border bg-surface-raised text-text-secondary")
                         }
                       >
                         <span className="truncate text-[13px] font-medium">
