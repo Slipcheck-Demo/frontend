@@ -1,37 +1,43 @@
 "use client";
 
 import { useState } from "react";
+import { ApiError, convertCode } from "@/lib/api";
 import { CenteredScreen } from "@/components/CenteredScreen";
 import { CodeInputForm } from "@/components/CodeInputForm";
+import { ErrorBanner } from "@/components/ErrorBanner";
 import { SlipCard } from "@/components/SlipCard";
-import type { SlipSelection } from "@/lib/types";
+import { SlipCardSkeleton } from "@/components/SlipCardSkeleton";
+import { toSlipSelection } from "@/lib/mapping";
+import type { ConvertResponse } from "@/lib/types";
 
-const keptSelections: SlipSelection[] = [
-  {
-    outcomeId: "7469919811",
-    marketName: "1X2",
-    outcomeName: "Arsenal FC (Vangogh)",
-    eventName: "Arsenal FC (Vangogh) vs. Chelsea FC (Nathan)",
-    kickoffLabel: "Today 20:30",
-    priceDecimal: 2.29,
-    status: "active",
-  },
-];
+type Status = "idle" | "loading" | "error" | "success";
 
-const removedSelections: SlipSelection[] = [
-  {
-    outcomeId: "999",
-    marketName: "1X2",
-    outcomeName: "Draw",
-    eventName: "Bayern Munich vs. Borussia Dortmund",
-    kickoffLabel: "Sep 14, 18:00",
-    priceDecimal: 3.4,
-    status: "removed",
-  },
-];
+function errorMessageFor(err: ApiError): string {
+  if (err.code === "invalid_code") {
+    return "We couldn't convert that code. It may be wrong or expired, or every selection on it may already be invalid or expired — there's nothing left to carry over.";
+  }
+  return "Something went wrong talking to Betway. Please try again in a moment.";
+}
 
 export default function ConvertPage() {
-  const [code, setCode] = useState("BW6E19810C");
+  const [inputCode, setInputCode] = useState("");
+  const [status, setStatus] = useState<Status>("idle");
+  const [result, setResult] = useState<ConvertResponse | null>(null);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  async function handleSubmit() {
+    if (!inputCode.trim()) return;
+    setStatus("loading");
+    try {
+      const data = await convertCode(inputCode.trim());
+      setResult(data);
+      setStatus("success");
+    } catch (err) {
+      const apiError = err instanceof ApiError ? err : new ApiError("upstream_error", 502);
+      setErrorMessage(errorMessageFor(apiError));
+      setStatus("error");
+    }
+  }
 
   return (
     <CenteredScreen>
@@ -46,17 +52,44 @@ export default function ConvertPage() {
       </div>
 
       <CodeInputForm
-        value={code}
-        onChange={setCode}
-        onSubmit={() => {}}
+        value={inputCode}
+        onChange={setInputCode}
+        onSubmit={handleSubmit}
         placeholder="e.g. BW6E19810C"
         submitLabel="Convert"
+        hasError={status === "error"}
+        disabled={status === "loading"}
       />
 
-      <div className="flex flex-col gap-4">
-        <SlipCard bookingCode="BW72B51FA3" selections={keptSelections} totalOdds={2.29} title="Kept" />
-        <SlipCard bookingCode={code} selections={removedSelections} showTotal={false} title="Removed" />
-      </div>
+      {status === "error" ? <ErrorBanner message={errorMessage} /> : null}
+      {status === "loading" ? <SlipCardSkeleton /> : null}
+      {status === "success" && result ? (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-3 rounded-md border border-success/30 bg-success/8 px-4 py-3">
+            <span className="text-[13px] text-text-secondary">
+              New code generated from{" "}
+              <span className="font-mono text-[#C5CAD6]">{inputCode.trim()}</span>
+            </span>
+            <span className="font-mono text-[15px] font-semibold text-success">
+              {result.bookingCode}
+            </span>
+          </div>
+          <SlipCard
+            bookingCode={result.bookingCode}
+            selections={result.selections.map(toSlipSelection)}
+            totalOdds={result.totalOdds}
+            title="Kept"
+          />
+          {result.removedLegs.length > 0 ? (
+            <SlipCard
+              bookingCode={inputCode.trim()}
+              selections={result.removedLegs.map(toSlipSelection)}
+              showTotal={false}
+              title="Removed"
+            />
+          ) : null}
+        </div>
+      ) : null}
     </CenteredScreen>
   );
 }
