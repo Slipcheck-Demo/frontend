@@ -1,6 +1,7 @@
 "use client";
 
 import { ApiError, convertCode } from "@/lib/api";
+import { CheckIcon } from "@/components/CheckIcon";
 import { CodeActionScreen } from "@/components/CodeActionScreen";
 import { SlipCard } from "@/components/SlipCard";
 import { useCodeAction } from "@/lib/hooks/useCodeAction";
@@ -40,15 +41,7 @@ export default function ConvertPage() {
         <div className="flex flex-col gap-4">
           {result.removedLegs.length === 0 ? (
             <div className="flex items-center gap-2.5 rounded-md border border-success/30 bg-success/8 px-4 py-3">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path
-                  d="M5 13l4 4L19 7"
-                  stroke="#34D399"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <CheckIcon />
               <span className="text-[13px] text-text-secondary">
                 This code is still fully active — every selection is still bettable, so
                 nothing needed to change.

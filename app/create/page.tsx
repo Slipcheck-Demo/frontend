@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ApiError, createCode, getEventMarkets, getEvents, getSports, toApiError } from "@/lib/api";
+import { CheckIcon } from "@/components/CheckIcon";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { SlipBuilder, type BuilderItem } from "@/components/SlipBuilder";
 import { SlipCard } from "@/components/SlipCard";
@@ -172,15 +173,7 @@ export default function CreatePage() {
       <div className="flex flex-1 justify-center px-6 py-16">
         <div className="flex w-full max-w-[640px] flex-col items-center gap-6">
           <div className="flex h-[52px] w-[52px] items-center justify-center rounded-full bg-success/14">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M5 13l4 4L19 7"
-                stroke="#34D399"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <CheckIcon size={24} />
           </div>
           <div className="flex flex-col gap-1.5 text-center">
             <h1 className="text-2xl font-bold text-text-primary">Your code is ready</h1>
