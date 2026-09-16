@@ -1,43 +1,43 @@
 "use client";
 
 import { useState } from "react";
+import { ApiError, resolveCode } from "@/lib/api";
 import { CenteredScreen } from "@/components/CenteredScreen";
 import { CodeInputForm } from "@/components/CodeInputForm";
+import { ErrorBanner } from "@/components/ErrorBanner";
 import { SlipCard } from "@/components/SlipCard";
-import type { SlipSelection } from "@/lib/types";
+import { SlipCardSkeleton } from "@/components/SlipCardSkeleton";
+import { toSlipSelection } from "@/lib/mapping";
+import type { SlipResponse } from "@/lib/types";
 
-const sampleSelections: SlipSelection[] = [
-  {
-    outcomeId: "7469919811",
-    marketName: "1X2",
-    outcomeName: "Arsenal FC (Vangogh)",
-    eventName: "Arsenal FC (Vangogh) vs. Chelsea FC (Nathan)",
-    kickoffLabel: "Today 20:30",
-    priceDecimal: 2.29,
-    status: "active",
-  },
-  {
-    outcomeId: "7423294012",
-    marketName: "Total (2.5)",
-    outcomeName: "Over",
-    eventName: "Real Madrid vs. Liverpool FC",
-    kickoffLabel: "Tomorrow 19:00",
-    priceDecimal: 1.85,
-    status: "active",
-  },
-  {
-    outcomeId: "999",
-    marketName: "1X2",
-    outcomeName: "Draw",
-    eventName: "Bayern Munich vs. Borussia Dortmund",
-    kickoffLabel: "Sep 14, 18:00",
-    priceDecimal: 3.4,
-    status: "removed",
-  },
-];
+type Status = "idle" | "loading" | "error" | "success";
+
+function errorMessageFor(err: ApiError): string {
+  if (err.code === "invalid_code") {
+    return "We couldn't find a usable slip for that code. It may be wrong, expired, or have no selections left on it — double-check it and try again.";
+  }
+  return "Something went wrong talking to Betway. Please try again in a moment.";
+}
 
 export default function DecodePage() {
-  const [code, setCode] = useState("BW72B51F99");
+  const [code, setCode] = useState("");
+  const [status, setStatus] = useState<Status>("idle");
+  const [result, setResult] = useState<SlipResponse | null>(null);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  async function handleSubmit() {
+    if (!code.trim()) return;
+    setStatus("loading");
+    try {
+      const data = await resolveCode(code.trim());
+      setResult(data);
+      setStatus("success");
+    } catch (err) {
+      const apiError = err instanceof ApiError ? err : new ApiError("upstream_error", 502);
+      setErrorMessage(errorMessageFor(apiError));
+      setStatus("error");
+    }
+  }
 
   return (
     <CenteredScreen>
@@ -54,12 +54,22 @@ export default function DecodePage() {
       <CodeInputForm
         value={code}
         onChange={setCode}
-        onSubmit={() => {}}
+        onSubmit={handleSubmit}
         placeholder="e.g. BW72B51F99"
         submitLabel="Decode"
+        hasError={status === "error"}
+        disabled={status === "loading"}
       />
 
-      <SlipCard bookingCode={code} selections={sampleSelections} totalOdds={14.4} />
+      {status === "error" ? <ErrorBanner message={errorMessage} /> : null}
+      {status === "loading" ? <SlipCardSkeleton /> : null}
+      {status === "success" && result ? (
+        <SlipCard
+          bookingCode={result.bookingCode}
+          selections={result.selections.map(toSlipSelection)}
+          totalOdds={result.totalOdds}
+        />
+      ) : null}
     </CenteredScreen>
   );
 }
