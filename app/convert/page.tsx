@@ -64,20 +64,38 @@ export default function ConvertPage() {
       {status === "loading" ? <SlipCardSkeleton /> : null}
       {status === "success" && result ? (
         <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between gap-3 rounded-md border border-success/30 bg-success/8 px-4 py-3">
-            <span className="text-[13px] text-text-secondary">
-              New code generated from{" "}
-              <span className="font-mono text-[#C5CAD6]">{inputCode.trim()}</span>
-            </span>
-            <span className="font-mono text-[15px] font-semibold text-success">
-              {result.bookingCode}
-            </span>
-          </div>
+          {result.removedLegs.length === 0 ? (
+            <div className="flex items-center gap-2.5 rounded-md border border-success/30 bg-success/8 px-4 py-3">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M5 13l4 4L19 7"
+                  stroke="#34D399"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="text-[13px] text-text-secondary">
+                This code is still fully active — every selection is still bettable, so
+                nothing needed to change.
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3 rounded-md border border-success/30 bg-success/8 px-4 py-3">
+              <span className="text-[13px] text-text-secondary">
+                New code generated from{" "}
+                <span className="font-mono text-[#C5CAD6]">{inputCode.trim()}</span>
+              </span>
+              <span className="font-mono text-[15px] font-semibold text-success">
+                {result.bookingCode}
+              </span>
+            </div>
+          )}
           <SlipCard
             bookingCode={result.bookingCode}
             selections={result.selections.map(toSlipSelection)}
             totalOdds={result.totalOdds}
-            title="Kept"
+            title={result.removedLegs.length === 0 ? undefined : "Kept"}
           />
           {result.removedLegs.length > 0 ? (
             <SlipCard
