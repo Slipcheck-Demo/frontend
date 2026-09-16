@@ -1,52 +1,305 @@
-import { CenteredScreen } from "@/components/CenteredScreen";
-import { SlipCard } from "@/components/SlipCard";
-import type { SlipSelection } from "@/lib/types";
+"use client";
 
-const selections: SlipSelection[] = [
-  {
-    outcomeId: "7469919811",
-    marketName: "1X2",
-    outcomeName: "Arsenal FC (Vangogh)",
-    eventName: "Arsenal FC (Vangogh) vs. Chelsea FC (Nathan)",
-    kickoffLabel: "Today 20:30",
-    priceDecimal: 2.29,
-    status: "active",
-  },
-  {
-    outcomeId: "7469919818total=2.5~12",
-    marketName: "Total (2.5)",
-    outcomeName: "Over",
-    eventName: "Arsenal FC (Vangogh) vs. Chelsea FC (Nathan)",
-    kickoffLabel: "Today 20:30",
-    priceDecimal: 1.85,
-    status: "active",
-  },
-];
+import { useEffect, useState } from "react";
+import { ApiError, createCode, getEventMarkets, getEvents, getSports } from "@/lib/api";
+import { ErrorBanner } from "@/components/ErrorBanner";
+import { SlipBuilder, type BuilderItem } from "@/components/SlipBuilder";
+import { SlipCard } from "@/components/SlipCard";
+import { toSlipSelection } from "@/lib/mapping";
+import { formatKickoff, formatOdds } from "@/lib/formatting";
+import type { EventMarket, EventOutcome, EventSummary, Sport, SlipResponse } from "@/lib/types";
+
+type Step = "sport" | "event" | "market" | "review";
+
+function createErrorMessageFor(err: ApiError): string {
+  if (err.code === "conflicting_selections") {
+    return "Two of your picks are from the same match and can't be combined — remove one before generating a code.";
+  }
+  if (err.code === "invalid_code") {
+    return "One of your picks is no longer available. Remove it and try again.";
+  }
+  return "Something went wrong talking to Betway. Please try again in a moment.";
+}
 
 export default function CreatePage() {
-  return (
-    <CenteredScreen>
-      <div className="flex flex-col items-center gap-6 text-center">
-        <div className="flex h-[52px] w-[52px] items-center justify-center rounded-full bg-success/14">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M5 13l4 4L19 7"
-              stroke="#34D399"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <h1 className="text-2xl font-bold text-text-primary">Your code is ready</h1>
-          <p className="text-sm text-text-secondary">
-            Share it, or copy it into the Betway betslip.
-          </p>
+  const [step, setStep] = useState<Step>("sport");
+
+  const [sports, setSports] = useState<Sport[]>([]);
+  const [sportsError, setSportsError] = useState("");
+  const [selectedSportId, setSelectedSportId] = useState<string | null>(null);
+
+  const [events, setEvents] = useState<EventSummary[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventsError, setEventsError] = useState("");
+  const [selectedEvent, setSelectedEvent] = useState<EventSummary | null>(null);
+
+  const [markets, setMarkets] = useState<EventMarket[]>([]);
+  const [marketsLoading, setMarketsLoading] = useState(false);
+
+  const [builderItems, setBuilderItems] = useState<BuilderItem[]>([]);
+  const [createStatus, setCreateStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [createError, setCreateError] = useState("");
+  const [reviewResult, setReviewResult] = useState<SlipResponse | null>(null);
+  const [copyLabel, setCopyLabel] = useState("Copy code");
+
+  useEffect(() => {
+    getSports()
+      .then((data) => setSports(data.sports))
+      .catch(() => setSportsError("Couldn't load the list of sports. Please refresh."));
+  }, []);
+
+  function handlePickSport(sportId: string) {
+    setSelectedSportId(sportId);
+    setStep("event");
+    setEventsLoading(true);
+    setEventsError("");
+    getEvents(sportId)
+      .then((data) => setEvents(data.events))
+      .catch(() => setEventsError("Couldn't load upcoming matches. Please try again."))
+      .finally(() => setEventsLoading(false));
+  }
+
+  function handlePickEvent(event: EventSummary) {
+    setSelectedEvent(event);
+    setMarkets(event.markets); // inline 1X2, shown immediately while the full list loads
+    setStep("market");
+    setMarketsLoading(true);
+    getEventMarkets(event.eventId)
+      .then((data) => setMarkets(data.markets))
+      .catch(() => {})
+      .finally(() => setMarketsLoading(false));
+  }
+
+  function toggleOutcome(outcome: EventOutcome) {
+    setBuilderItems((prev) => {
+      const exists = prev.some((item) => item.outcomeId === outcome.outcomeId);
+      if (exists) return prev.filter((item) => item.outcomeId !== outcome.outcomeId);
+      return [
+        ...prev,
+        {
+          outcomeId: outcome.outcomeId,
+          outcomeName: outcome.displayName,
+          eventShort: selectedEvent ? `${selectedEvent.homeTeam} vs. ${selectedEvent.awayTeam}` : "",
+          priceDecimal: outcome.priceDecimal,
+        },
+      ];
+    });
+  }
+
+  function removeItem(outcomeId: string) {
+    setBuilderItems((prev) => prev.filter((item) => item.outcomeId !== outcomeId));
+  }
+
+  async function handleGenerate() {
+    setCreateStatus("loading");
+    setCreateError("");
+    try {
+      const data = await createCode(builderItems.map((item) => item.outcomeId));
+      setReviewResult(data);
+      setStep("review");
+      setCreateStatus("idle");
+    } catch (err) {
+      const apiError = err instanceof ApiError ? err : new ApiError("upstream_error", 502);
+      setCreateError(createErrorMessageFor(apiError));
+      setCreateStatus("error");
+    }
+  }
+
+  function handleStartOver() {
+    setStep("sport");
+    setSelectedSportId(null);
+    setEvents([]);
+    setSelectedEvent(null);
+    setMarkets([]);
+    setBuilderItems([]);
+    setReviewResult(null);
+    setCreateStatus("idle");
+    setCreateError("");
+    setCopyLabel("Copy code");
+  }
+
+  async function handleCopyCode() {
+    if (!reviewResult) return;
+    try {
+      await navigator.clipboard.writeText(reviewResult.bookingCode);
+      setCopyLabel("Copied!");
+      setTimeout(() => setCopyLabel("Copy code"), 1500);
+    } catch {
+      // clipboard access denied — leave the label as-is, the code is still shown on screen
+    }
+  }
+
+  if (step === "review" && reviewResult) {
+    return (
+      <div className="flex flex-1 justify-center px-6 py-16">
+        <div className="flex w-full max-w-[640px] flex-col items-center gap-6">
+          <div className="flex h-[52px] w-[52px] items-center justify-center rounded-full bg-success/14">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M5 13l4 4L19 7"
+                stroke="#34D399"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <div className="flex flex-col gap-1.5 text-center">
+            <h1 className="text-2xl font-bold text-text-primary">Your code is ready</h1>
+            <p className="text-sm text-text-secondary">
+              Share it, or copy it into the Betway betslip.
+            </p>
+          </div>
+          <SlipCard
+            bookingCode={reviewResult.bookingCode}
+            selections={reviewResult.selections.map(toSlipSelection)}
+            totalOdds={reviewResult.totalOdds}
+          />
+          <div className="flex w-full gap-2.5">
+            <button
+              type="button"
+              onClick={handleCopyCode}
+              className="flex-1 rounded-md bg-accent py-[13px] text-sm font-semibold text-on-accent"
+            >
+              {copyLabel}
+            </button>
+            <button
+              type="button"
+              onClick={handleStartOver}
+              className="flex-1 rounded-md border border-border bg-surface py-[13px] text-sm font-semibold text-text-primary"
+            >
+              Start a new slip
+            </button>
+          </div>
         </div>
       </div>
+    );
+  }
 
-      <SlipCard bookingCode="BW72B51F99" selections={selections} totalOdds={4.24} />
-    </CenteredScreen>
+  const sportName = sports.find((s) => s.sportId === selectedSportId)?.name ?? "";
+  const breadcrumb =
+    step === "sport"
+      ? "1. Choose a sport"
+      : step === "event"
+        ? `${sportName} › 2. Choose a match`
+        : `${sportName} › ${selectedEvent?.homeTeam} vs ${selectedEvent?.awayTeam} › 3. Choose markets`;
+
+  return (
+    <div className="flex flex-1">
+      <div className="flex min-w-0 flex-1 flex-col gap-6 px-12 py-10">
+        <div className="text-[13px] text-text-tertiary">{breadcrumb}</div>
+
+        {step === "sport" ? (
+          sportsError ? (
+            <ErrorBanner message={sportsError} />
+          ) : (
+            <div>
+              <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+                Choose a sport
+              </p>
+              <div className="grid grid-cols-4 gap-3">
+                {sports.map((sport) => (
+                  <button
+                    key={sport.sportId}
+                    type="button"
+                    onClick={() => handlePickSport(sport.sportId)}
+                    className="flex flex-col items-center gap-2.5 rounded-md border border-border bg-surface-raised px-3.5 py-4.5 text-text-secondary hover:border-accent hover:text-text-primary"
+                  >
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+                    </svg>
+                    <span className="text-[13px] font-semibold">{sport.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+        ) : null}
+
+        {step === "event" ? (
+          <div className="flex flex-col gap-2.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+              Upcoming matches
+            </p>
+            {eventsError ? <ErrorBanner message={eventsError} /> : null}
+            {eventsLoading ? (
+              <div className="skeleton h-16 w-full" />
+            ) : (
+              events.map((event) => (
+                <button
+                  key={event.eventId}
+                  type="button"
+                  onClick={() => handlePickEvent(event)}
+                  className="flex items-center justify-between gap-4 rounded-md border border-border bg-surface-raised px-[18px] py-4 text-left hover:border-accent"
+                >
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <span className="text-sm font-semibold text-text-primary">{event.name}</span>
+                    <span className="text-[12.5px] text-text-secondary">
+                      {event.league} &middot; {formatKickoff(event.expectedStartEpoch)}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    {event.markets[0]?.outcomes.map((outcome) => (
+                      <div
+                        key={outcome.outcomeId}
+                        className="min-w-12 rounded-md border border-border bg-surface px-3 py-2 text-center font-mono text-[13px] font-semibold text-text-primary"
+                      >
+                        {outcome.priceDecimal != null ? formatOdds(outcome.priceDecimal) : "—"}
+                      </div>
+                    ))}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        ) : null}
+
+        {step === "market" ? (
+          <div className="flex flex-col gap-[22px]">
+            {markets.map((market) => (
+              <div key={market.marketId}>
+                <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+                  {market.displayName}
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {market.outcomes.map((outcome) => {
+                    const picked = builderItems.some((item) => item.outcomeId === outcome.outcomeId);
+                    return (
+                      <button
+                        key={outcome.outcomeId}
+                        type="button"
+                        onClick={() => toggleOutcome(outcome)}
+                        className={
+                          "flex items-center justify-between gap-2 rounded-[9px] border px-3 py-2.5 text-left " +
+                          (picked
+                            ? "border-accent bg-accent/12 text-text-primary"
+                            : "border-border bg-surface-raised text-text-secondary")
+                        }
+                      >
+                        <span className="truncate text-[13px] font-medium">
+                          {outcome.displayName}
+                        </span>
+                        <span className="font-mono text-[13px] font-semibold">
+                          {outcome.priceDecimal != null ? formatOdds(outcome.priceDecimal) : "—"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            {marketsLoading ? <div className="skeleton h-24 w-full" /> : null}
+            {createStatus === "error" ? <ErrorBanner message={createError} /> : null}
+          </div>
+        ) : null}
+      </div>
+
+      <SlipBuilder
+        items={builderItems}
+        onRemove={removeItem}
+        onGenerate={handleGenerate}
+        generating={createStatus === "loading"}
+      />
+    </div>
   );
 }
