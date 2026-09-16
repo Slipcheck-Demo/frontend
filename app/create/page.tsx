@@ -8,6 +8,7 @@ import { SlipBuilder, type BuilderItem } from "@/components/SlipBuilder";
 import { SlipCard } from "@/components/SlipCard";
 import { toSlipSelection } from "@/lib/mapping";
 import { formatKickoff, formatOdds } from "@/lib/formatting";
+import { sportIcon } from "@/lib/sportIcons";
 import type { EventMarket, EventOutcome, EventSummary, Sport, SlipResponse } from "@/lib/types";
 
 type Step = "sport" | "event" | "market" | "review";
@@ -273,9 +274,9 @@ export default function CreatePage() {
                       onClick={() => handlePickSport(sport.sportId)}
                       className="flex flex-col items-center gap-2.5 rounded-md border border-border bg-surface-raised px-3.5 py-4.5 text-text-secondary hover:border-accent hover:text-text-primary"
                     >
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
-                      </svg>
+                      <span className="text-xl leading-none" aria-hidden="true">
+                        {sportIcon(sport.sportId)}
+                      </span>
                       <span className="text-[13px] font-semibold">{sport.name}</span>
                     </button>
                   ))}
