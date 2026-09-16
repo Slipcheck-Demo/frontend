@@ -55,8 +55,22 @@ export default function CreatePage() {
       .finally(() => setSportsLoading(false));
   }, []);
 
+  // The wizard's steps live only in this component's state, not the URL, so without this the
+  // browser's back button would just leave /create entirely (to whatever page linked here)
+  // instead of stepping back one level. Forward transitions push a history entry; the
+  // breadcrumb "back" links below call history.back() instead of setStep directly, so both
+  // paths stay in sync with this listener.
+  useEffect(() => {
+    function handlePopState(event: PopStateEvent) {
+      setStep((event.state?.step as Step | undefined) ?? "sport");
+    }
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   function handlePickSport(sportId: string) {
     setSelectedSportId(sportId);
+    window.history.pushState({ step: "event" }, "");
     setStep("event");
     setEvents([]);
     setEventsIsFinalPage(true);
@@ -86,18 +100,22 @@ export default function CreatePage() {
   // Breadcrumb links back to "sport"/"event" deliberately leave builderItems alone — this is
   // the only way to add a leg from a second match, since the backend rejects any two
   // selections that share an eventId (same-match legs can't combine into one slip).
+  // The breadcrumb can jump back more than one wizard step at once (e.g. from "market" straight
+  // to "sport"), so it has to pop that many history entries — a single history.back() only
+  // undoes the most recent pushState.
   function handleBackToSports() {
-    setStep("sport");
+    window.history.go(step === "market" ? -2 : -1);
   }
 
   function handleBackToEvents() {
-    setStep("event");
+    window.history.back();
   }
 
   function handlePickEvent(event: EventSummary) {
     setSelectedEvent(event);
     setMarkets(event.markets); // inline 1X2, shown immediately while the full list loads
     setMarketsError("");
+    window.history.pushState({ step: "market" }, "");
     setStep("market");
     setMarketsLoading(true);
     getEventMarkets(event.eventId)
