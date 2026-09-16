@@ -6,7 +6,9 @@ product — Decode, Create, and Convert screens over
 
 Design: [Claude Design canvas](https://claude.ai/artifact/X28GaTC2QPLeU9hVkUTuKD), tokens
 extracted verbatim into `../docs/design-tokens.md` — read that file before changing any
-color/spacing/typography value here.
+color/spacing/typography value here. System architecture and sequence diagrams live in the
+`betway-booking-backend` repo's `docs/architecture.md` (the backend is the hub all three
+repos share; checked out as a sibling directory that's `../backend/docs/architecture.md`).
 
 ## Screens
 
